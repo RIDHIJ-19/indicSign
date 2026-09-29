@@ -1,119 +1,99 @@
+"""IndicSign (on-device ML edition) - MediaPipe hand landmarks + Random Forest classifier."""
+
+import base64
+import os
 import pickle
-import numpy as np
+import threading
+
 import cv2
 import mediapipe as mp
-from flask import Flask, Response, render_template, request, jsonify
-import base64
-from io import BytesIO
+import numpy as np
+from flask import Flask, jsonify, render_template, request
 
-# Initialize Flask app
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app = Flask(__name__)
 
-# Load trained model
-model_dict = pickle.load(open("model.p", "rb"))
+with open(os.path.join(BASE_DIR, "model.p"), "rb") as f:
+    model_dict = pickle.load(f)
 model = model_dict["model"]
 max_length = model_dict["max_length"]
 
-# Initialize Mediapipe
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-
-hands = mp_hands.Hands(static_image_mode=False, min_detection_confidence=0.3)
 labels_dict = {i: chr(65 + i) for i in range(26)}  # A-Z
 
-def process_frame(frame):
-    """Extract hand landmarks and make a prediction."""
-    data_aux, x_, y_ = [], [], []
+mp_hands = mp.solutions.hands
+# static_image_mode: frames arrive independently over HTTP, so don't rely on tracking state.
+hands = mp_hands.Hands(static_image_mode=True, max_num_hands=2, min_detection_confidence=0.3)
+hands_lock = threading.Lock()  # MediaPipe graphs are not thread-safe
+
+
+def extract_features(frame):
+    """Return the padded landmark feature vector, or None if no hand is visible."""
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(frame_rgb)
+    with hands_lock:
+        results = hands.process(frame_rgb)
 
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            for landmark in hand_landmarks.landmark:
-                x_.append(landmark.x)
-                y_.append(landmark.y)
+    if not results.multi_hand_landmarks:
+        return None
 
-            for landmark in hand_landmarks.landmark:
-                data_aux.append(landmark.x - min(x_))
-                data_aux.append(landmark.y - min(y_))
+    data_aux, x_, y_ = [], [], []
+    for hand_landmarks in results.multi_hand_landmarks:
+        for landmark in hand_landmarks.landmark:
+            x_.append(landmark.x)
+            y_.append(landmark.y)
+        for landmark in hand_landmarks.landmark:
+            data_aux.append(landmark.x - min(x_))
+            data_aux.append(landmark.y - min(y_))
 
-        # Pad data to match max_length
-        data_aux_padded = np.pad(data_aux, (0, max_length - len(data_aux)), mode='constant')
-        prediction = model.predict([np.asarray(data_aux_padded)])
-        return labels_dict[int(prediction[0])]
+    data_aux = data_aux[:max_length]
+    return np.pad(data_aux, (0, max_length - len(data_aux)), mode="constant")
 
-    return None
+
+def predict(frame):
+    features = extract_features(frame)
+    if features is None:
+        return {"hand": False, "letter": "", "confidence": None}
+
+    probabilities = model.predict_proba([features])[0]
+    best = int(np.argmax(probabilities))
+    letter = labels_dict[int(model.classes_[best])]
+    return {"hand": True, "letter": letter, "confidence": round(float(probabilities[best]), 3)}
+
 
 @app.route("/")
 def index():
-    """Render the homepage."""
-    return render_template("index.html")  # Render the index.html page
+    return render_template("index.html", engine="On-device ML", engine_note="MediaPipe landmarks + Random Forest",
+                           interval=700, stable=3)
 
-@app.route("/video_feed")
-def video_feed():
-    """Return the camera feed as a video stream."""
-    return Response(generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
- 
+
+@app.route("/health")
+def health():
+    return jsonify({"ok": True, "model": "random-forest", "features": max_length})
+
+
 @app.route("/process_frame", methods=["POST"])
-def process_image():
-    """Handle the image from the frontend, process it, and return prediction."""
-    data = request.get_json()
-    image_data = data['image']
+def process_frame():
+    data = request.get_json(silent=True) or {}
+    image_data = data.get("image", "")
+    if not image_data or "," not in image_data:
+        return jsonify({"error": "Empty image data received"}), 400
 
     try:
-        # Decode the base64 image
-        img_data = base64.b64decode(image_data.split(',')[1])  # Ignore base64 header
+        img_bytes = base64.b64decode(image_data.split(",", 1)[1])
+        img = cv2.imdecode(np.frombuffer(img_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except Exception:
+        img = None
+    if img is None:
+        return jsonify({"error": "Failed to decode image"}), 400
 
-        # Check if the decoded data is not empty
-        if not img_data:
-            return jsonify({"prediction": "Empty image data received"})
+    try:
+        result = predict(img)
+    except Exception as exc:
+        app.logger.exception("Prediction failed")
+        return jsonify({"error": f"Prediction failed: {exc}"}), 500
 
-        # Convert the binary data to numpy array
-        img_array = np.frombuffer(img_data, dtype=np.uint8)
+    return jsonify({**result, "prediction": result["letter"] or "No hand detected"})
 
-        # Ensure the array is not empty
-        if img_array.size == 0:
-            return jsonify({"prediction": "Invalid image data"})
-
-        # Decode the numpy array into an image
-        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-
-        # Check if the image is properly decoded
-        if img is None:
-            return jsonify({"prediction": "Failed to decode image"})
-
-        # Process the frame and get prediction
-        predicted_character = process_frame(img)
-        if predicted_character:
-            return jsonify({"prediction": predicted_character})
-        else:
-            return jsonify({"prediction": "No Hand Detected"})
-    except Exception as e:
-        return jsonify({"prediction": f"Error processing image: {str(e)}"})
-
-
-def generate_frames():
-    """Capture video frames and make predictions in real-time."""
-    cap = cv2.VideoCapture(0)  # Access first available camera
-    while cap.isOpened():
-        success, frame = cap.read()
-        if not success:
-            break
-
-        predicted_character = process_frame(frame)
-
-        # Draw text on frame
-        if predicted_character:
-            cv2.putText(frame, predicted_character, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 0), 3)
-
-        # Encode frame as JPEG
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame_bytes = buffer.tobytes()
-        
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
-    cap.release()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1", port=int(os.getenv("PORT", 5001)))

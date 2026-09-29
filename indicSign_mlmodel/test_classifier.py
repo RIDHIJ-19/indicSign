@@ -14,7 +14,7 @@ def find_available_camera():
     return None
 
 # Load the trained model and max_length
-model_dict = pickle.load(open('./model.p', 'rb'))
+model_dict = pickle.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.p'), 'rb'))
 model = model_dict['model']
 max_length = model_dict['max_length']
 

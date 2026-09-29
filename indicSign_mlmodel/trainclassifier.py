@@ -1,3 +1,4 @@
+import os
 import pickle
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
@@ -5,7 +6,7 @@ from sklearn.metrics import accuracy_score
 import numpy as np
 
 # Load the dataset
-data_dict = pickle.load(open('./data.pickle', 'rb'))
+data_dict = pickle.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data.pickle'), 'rb'))
 
 # Ensure all data entries are of the same length
 data = data_dict['data']
@@ -39,5 +40,5 @@ score = accuracy_score(y_predict, y_test)
 print(f'{score * 100}% of samples were classified correctly!')
 
 # Save the trained model and max_length
-with open('model.p', 'wb') as f:
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.p'), 'wb') as f:
     pickle.dump({'model': model, 'max_length': max_length}, f)

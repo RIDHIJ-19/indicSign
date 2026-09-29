@@ -1,6 +1,9 @@
-Flask
-opencv-python
-mediapipe
-scikit-learn
-gunicorn
-numpy
+Flask>=3.0
+gunicorn>=22.0
+# model.p was trained with scikit-learn 1.6.1 - keep this pinned so the pickle loads cleanly
+scikit-learn==1.6.1
+# 0.10.21 still ships the legacy mp.solutions.hands API used here
+mediapipe==0.10.21
+numpy>=1.26,<2
+opencv-python>=4.9,<4.11  # full build: the helper scripts open preview windows
+matplotlib  # only used by create_dataset.py

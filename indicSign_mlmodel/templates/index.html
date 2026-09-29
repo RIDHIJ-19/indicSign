@@ -1,71 +1,548 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Language Recognition</title>
-    <style>
-        video {
-            width: 100%;
-            max-width: 500px;
-            height: auto;
-        }
-        #prediction {
-            font-size: 24px;
-            color: green;
-            font-weight: bold;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IndicSign</title>
+<meta name="description" content="IndicSign translates Indian Sign Language alphabet signs into text, in real time.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%234D7CFE'/%3E%3Cpath d='M22 40c0-8 2-14 4-20m6 22V16m6 24c0-8-1-14-2-20m6 22c0-4 1-8 3-12' stroke='%23fff' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f9fd;
+  --bg-soft: #eef3fc;
+  --surface: #ffffff;
+  --ink: #1e2a45;
+  --muted: #5e6a85;
+  --line: #e2e8f3;
+  --accent: #4d7cfe;
+  --accent-2: #ff8f6b;
+  --accent-ink: #ffffff;
+  --accent-soft: #e7eeff;
+  --lavender: #ffd8c9;
+  --sand: #c8f1e2;
+  --warn: #d9822b;
+  --warn-soft: #fff2e4;
+  --shadow: 0 1px 2px rgba(30, 42, 69, .04), 0 14px 34px -14px rgba(77, 124, 254, .22);
+  --radius: 24px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1323; --bg-soft: #131a2e; --surface: #182036; --ink: #e9edf8; --muted: #9ba6c2;
+    --line: #253049; --accent: #7d9dff; --accent-2: #ffa688; --accent-ink: #0b1020; --accent-soft: #1f2a4c;
+    --lavender: #4a2e36; --sand: #183b35; --warn: #f0b074; --warn-soft: #3a2c1e;
+    --shadow: 0 1px 2px rgba(0,0,0,.25), 0 18px 40px -18px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1323; --bg-soft: #131a2e; --surface: #182036; --ink: #e9edf8; --muted: #9ba6c2;
+  --line: #253049; --accent: #7d9dff; --accent-2: #ffa688; --accent-ink: #0b1020; --accent-soft: #1f2a4c;
+  --lavender: #4a2e36; --sand: #183b35; --warn: #f0b074; --warn-soft: #3a2c1e;
+  --shadow: 0 1px 2px rgba(0,0,0,.25), 0 18px 40px -18px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.65 "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  transition: background .4s ease, color .4s ease;
+}
+h1, h2, h3 { font-family: "Nunito", "DM Sans", system-ui, sans-serif; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; margin: 0; }
+p { margin: 0; }
+a { color: inherit; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+.wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Header ---------- */
+header { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+.nav { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: "Nunito", sans-serif; font-size: 1.35rem; font-weight: 900; }
+.brand-mark { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; color: var(--accent-ink); }
+.nav-links { display: flex; align-items: center; gap: 6px; }
+.nav-links a { text-decoration: none; color: var(--muted); padding: 8px 12px; border-radius: 999px; font-size: .95rem; transition: background .2s, color .2s; }
+.nav-links a:hover { background: var(--bg-soft); color: var(--ink); }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; transition: background .2s; }
+.icon-btn:hover { background: var(--bg-soft); }
+.theme-moon { display: none; }
+:root[data-theme="dark"] .theme-sun { display: none; }
+:root[data-theme="dark"] .theme-moon { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-sun { display: none; }
+  :root:not([data-theme="light"]) .theme-moon { display: block; }
+}
+@media (max-width: 720px) { .nav-links a:not(.keep) { display: none; } }
+
+/* ---------- Hero ---------- */
+.hero { position: relative; padding: 96px 0 72px; overflow: hidden; isolation: isolate; }
+.blobs { position: absolute; inset: 0; z-index: -1; -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent); mask-image: linear-gradient(to bottom, #000 55%, transparent); }
+.blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: .6; z-index: -1; animation: drift 22s ease-in-out infinite alternate; }
+.blob.one { width: 420px; height: 420px; background: var(--accent-soft); top: -120px; right: -80px; }
+.blob.two { width: 360px; height: 360px; background: var(--lavender); bottom: -160px; left: -100px; animation-delay: -8s; }
+.blob.three { width: 260px; height: 260px; background: var(--sand); top: 40%; right: 30%; opacity: .35; animation-delay: -14s; }
+@keyframes drift { from { transform: translate(0, 0) scale(1); } to { transform: translate(30px, 24px) scale(1.08); } }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); background: var(--surface); border: 1px solid var(--line); padding: 6px 14px; border-radius: 999px; }
+.breath { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: breathe 4s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(.8); opacity: .6; } 50% { transform: scale(1.25); opacity: 1; } }
+.hero h1 { font-size: clamp(2.6rem, 6.4vw, 4.6rem); margin: 22px 0 18px; max-width: 13ch; }
+.hero h1 em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .lede { font-size: 1.15rem; color: var(--muted); max-width: 54ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 44px; padding: 0; list-style: none; }
+.chips li { display: inline-flex; align-items: center; gap: 8px; font-size: .92rem; font-weight: 500; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; box-shadow: var(--shadow); }
+
+/* ---------- Buttons ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 999px; padding: 12px 22px; font-weight: 500; text-decoration: none; transition: transform .2s ease, background .2s, box-shadow .2s, opacity .2s; }
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); font-weight: 700; box-shadow: 0 10px 22px -10px var(--accent); }
+.btn-primary:hover { box-shadow: 0 12px 26px -10px var(--accent); transform: translateY(-1px); }
+.btn-ghost { background: var(--surface); border-color: var(--line); }
+.btn-ghost:hover { background: var(--bg-soft); }
+.btn-sm { padding: 8px 14px; font-size: .9rem; }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+
+/* ---------- Sections ---------- */
+section { padding: 72px 0; }
+.section-head { margin-bottom: 32px; max-width: 60ch; }
+.section-head h2 { font-size: clamp(1.8rem, 3.5vw, 2.5rem); margin-bottom: 10px; }
+.section-head p { color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+/* ---------- Translator ---------- */
+.studio { display: grid; grid-template-columns: 1.25fr 1fr; gap: 24px; align-items: start; }
+@media (max-width: 900px) { .studio { grid-template-columns: 1fr; } }
+.camera { padding: 14px; }
+.stage { position: relative; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: var(--bg-soft); }
+.stage video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.stage .placeholder { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--muted); }
+.stage .placeholder svg { margin: 0 auto 14px; color: var(--accent); opacity: .8; }
+.status-pill { position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; padding: 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); }
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status-pill.live .dot { background: var(--accent); animation: breathe 3s ease-in-out infinite; }
+.status-pill.warn .dot { background: var(--warn); }
+.frame-guide { position: absolute; inset: 14%; border: 2px dashed color-mix(in srgb, #ffffff 75%, transparent); border-radius: 28px; pointer-events: none; opacity: 0; transition: opacity .4s; }
+.stage.on .frame-guide { opacity: 1; }
+.stage.on .placeholder { display: none; }
+.camera-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 14px 6px 4px; }
+.camera-bar .note { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+
+.reading { padding: 26px; display: flex; flex-direction: column; gap: 22px; }
+.letter-row { display: flex; align-items: center; gap: 22px; }
+.ring { --p: 0; position: relative; width: 132px; height: 132px; flex: none; border-radius: 50%; background: conic-gradient(from 180deg, var(--accent), var(--accent-2) calc(var(--p) * 1%), var(--accent-soft) 0); display: grid; place-items: center; transition: --p .6s ease; }
+.ring::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--surface); }
+.ring .letter { position: relative; font-family: "Nunito", sans-serif; font-size: 4.2rem; font-weight: 900; line-height: 1; color: var(--ink); transition: transform .35s ease, opacity .35s ease; }
+.ring .letter.pop { animation: pop .45s ease; }
+@keyframes pop { 0% { transform: scale(.85); opacity: .3; } 100% { transform: scale(1); opacity: 1; } }
+.letter-meta h3 { font-size: 1.25rem; margin-bottom: 4px; }
+.letter-meta p { color: var(--muted); font-size: .95rem; }
+.message { font-size: .9rem; border-radius: 14px; padding: 10px 14px; background: var(--accent-soft); color: var(--ink); display: none; }
+.message.show { display: block; }
+.message.warn { background: var(--warn-soft); }
+
+.transcript-label { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+.transcript { min-height: 110px; padding: 16px 18px; border-radius: 16px; background: var(--bg-soft); border: 1px solid var(--line); font-family: "Nunito", sans-serif; font-weight: 800; font-size: 1.6rem; letter-spacing: .08em; word-break: break-word; }
+.transcript:empty::before { content: "Your words will show up here ✨"; color: var(--muted); font-family: "DM Sans", sans-serif; font-weight: 400; font-size: 1rem; letter-spacing: 0; }
+.caret { display: inline-block; width: 2px; height: 1.2em; background: var(--accent); vertical-align: -0.2em; margin-left: 2px; animation: blink 1.4s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); cursor: pointer; user-select: none; }
+.switch input { appearance: none; width: 36px; height: 20px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform .2s; }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(16px); }
+
+/* ---------- Tips / steps ---------- */
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 900px) { .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+.tip, .step { padding: 22px; }
+.tip .ic, .step .num { width: 46px; height: 46px; border-radius: 16px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; margin-bottom: 14px; font-family: "Nunito", sans-serif; font-weight: 900; font-size: 1.25rem; }
+.tip:nth-child(2) .ic, .step:nth-child(2) .num { background: var(--lavender); color: var(--ink); }
+.tip:nth-child(3) .ic, .step:nth-child(3) .num { background: var(--sand); color: var(--ink); }
+.tip, .step { transition: transform .25s ease, box-shadow .25s ease; }
+.tip:hover, .step:hover { transform: translateY(-3px); }
+.tip h3, .step h3 { font-size: 1.1rem; margin-bottom: 6px; }
+.tip p, .step p { color: var(--muted); font-size: .95rem; }
+.soft-band { background: var(--bg-soft); }
+
+/* ---------- Feedback ---------- */
+.feedback { display: grid; grid-template-columns: 1fr 1.2fr; gap: 32px; align-items: start; }
+@media (max-width: 900px) { .feedback { grid-template-columns: 1fr; } }
+form.card { padding: 26px; display: grid; gap: 16px; }
+label { font-size: .9rem; font-weight: 500; display: grid; gap: 6px; }
+input[type="text"], input[type="email"], textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; transition: border-color .2s, box-shadow .2s; }
+input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+textarea { min-height: 130px; resize: vertical; }
+
+footer { padding: 40px 0 56px; color: var(--muted); font-size: .9rem; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .8s ease, transform .8s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
 </head>
 <body>
-    <h1>Sign Language Recognition</h1>
-    <video id="webcam" autoplay></video>
-    <button id="startButton">Start</button>
-    <div id="prediction">Prediction: </div>
 
-    <script>
-        const videoElement = document.getElementById('webcam');
-        const startButton = document.getElementById('startButton');
-        const predictionElement = document.getElementById('prediction');
+<header>
+  <nav class="wrap nav" aria-label="Main">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+      </span>
+      IndicSign
+    </a>
+    <div class="nav-links">
+      <a class="keep" href="#translate">Translate</a>
+      <a href="#tips">Tips</a>
+      <a href="#how">How it works</a>
+      <a href="#feedback">Feedback</a>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode">
+        <svg class="theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </nav>
+</header>
 
-        // Start the webcam feed
-        startButton.addEventListener('click', async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            videoElement.srcObject = stream;
+<main id="top">
+  <div class="hero">
+    <div class="blobs" aria-hidden="true"><div class="blob one"></div><div class="blob two"></div><div class="blob three"></div></div>
+    <div class="wrap">
+      <span class="eyebrow"><span class="breath"></span>{{ engine_note }}</span>
+      <h1>Say it with your <em>hands.</em></h1>
+      <p class="lede">Show an Indian Sign Language letter to your camera and watch it turn into text, one letter at a time. Simple, free, and right in your browser.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#translate">Try it now 👋</a>
+        <a class="btn btn-ghost" href="#how">How it works</a>
+      </div>
+      <ul class="chips"><li>🤝 Made for everyone</li><li>⚡ Works in real time</li><li>🔒 Nothing is saved</li></ul>
+    </div>
+  </div>
+
+  <section id="translate">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>Translate</h2>
+        <p>Turn on your camera and hold a sign inside the frame. Keep it steady for a second and the letter pops into your words.</p>
+      </div>
+
+      <div class="studio">
+        <div class="card camera reveal">
+          <div class="stage" id="stage">
+            <video id="webcam" autoplay playsinline muted aria-label="Camera preview"></video>
+            <div class="frame-guide" aria-hidden="true"></div>
+            <div class="placeholder">
+              <div>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="3"/></svg>
+                <p><strong>Your camera is off</strong></p>
+                <p style="font-size:.9rem">Frames are only used to read your sign.</p>
+              </div>
+            </div>
+            <div class="status-pill" id="statusPill"><span class="dot"></span><span id="statusText">Camera off</span></div>
+          </div>
+          <div class="camera-bar">
+            <div class="tools">
+              <button class="btn btn-primary" id="startBtn" type="button">Turn on camera</button>
+              <button class="btn btn-ghost" id="pauseBtn" type="button" disabled>Pause</button>
+              <button class="btn btn-ghost" id="stopBtn" type="button" disabled>Stop</button>
+            </div>
+            <span class="note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {{ engine }} · nothing is stored
+            </span>
+          </div>
+        </div>
+
+        <div class="card reading reveal">
+          <div class="letter-row">
+            <div class="ring" id="ring" role="img" aria-label="Current letter">
+              <span class="letter" id="letter">·</span>
+            </div>
+            <div class="letter-meta">
+              <h3 id="letterTitle">Ready when you are</h3>
+              <p id="letterSub">Show one hand sign at a time.</p>
+            </div>
+          </div>
+          <div class="sr-only" aria-live="polite" id="liveRegion"></div>
+          <div class="message" id="message" role="status"></div>
+
+          <div>
+            <div class="transcript-label">
+              <span>Your words</span>
+              <label class="switch"><input type="checkbox" id="autoAdd" checked> Auto-add steady letters</label>
+            </div>
+            <div class="transcript" id="transcript" aria-live="polite"></div>
+          </div>
+
+          <div class="tools">
+            <button class="btn btn-ghost btn-sm" id="addBtn" type="button" disabled>Add letter</button>
+            <button class="btn btn-ghost btn-sm" id="spaceBtn" type="button">Space</button>
+            <button class="btn btn-ghost btn-sm" id="backBtn" type="button">Delete</button>
+            <button class="btn btn-ghost btn-sm" id="clearBtn" type="button">Clear</button>
+            <button class="btn btn-ghost btn-sm" id="speakBtn" type="button">Speak</button>
+            <button class="btn btn-ghost btn-sm" id="copyBtn" type="button">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tips" class="soft-band">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>Tips for the best results</h2>
+        <p>A few small things that make a big difference.</p>
+      </div>
+      <div class="grid-4">
+        <div class="card tip reveal"><div class="ic">💡</div><h3>Good lighting</h3><p>Face a window or lamp so your hand isn't in shadow.</p></div>
+        <div class="card tip reveal"><div class="ic">🖼️</div><h3>Plain background</h3><p>A simple wall behind you helps your hand stand out.</p></div>
+        <div class="card tip reveal"><div class="ic">✋</div><h3>Stay in frame</h3><p>Keep your whole hand inside the dashed outline.</p></div>
+        <div class="card tip reveal"><div class="ic">⏱️</div><h3>Hold it steady</h3><p>Keep each sign still for a second or two before moving on.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <h2>How it works</h2>
+        <p>IndicSign helps the Deaf and hard-of-hearing community and the people around them connect more easily, every day.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card step reveal"><div class="num">1</div><h3>See</h3><p>Your browser takes a quick snapshot from the camera. It's never saved anywhere.</p></div>
+        <div class="card step reveal"><div class="num">2</div><h3>Understand</h3><p>{{ engine_note }} reads the hand shape and suggests the matching ISL letter.</p></div>
+        <div class="card step reveal"><div class="num">3</div><h3>Share</h3><p>Steady letters become words you can copy, or have read aloud with one tap.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="feedback" class="soft-band">
+    <div class="wrap feedback">
+      <div class="section-head reveal">
+        <h2>Tell us what you think 💬</h2>
+        <p>Spotted a sign it gets wrong, or have an idea? We read every message and use it to make IndicSign better.</p>
+      </div>
+      <form class="card reveal" action="https://api.web3forms.com/submit" method="POST">
+        <input type="hidden" name="access_key" value="fe2c39fd-4ecb-44b3-9f71-a3944c5d92d8">
+        <input type="hidden" name="subject" value="IndicSign feedback">
+        <input type="checkbox" name="botcheck" style="display:none" tabindex="-1" autocomplete="off">
+        <label>Name <input type="text" name="name" required autocomplete="name"></label>
+        <label>Email <input type="email" name="email" required autocomplete="email"></label>
+        <label>Message <textarea name="message" required></textarea></label>
+        <button class="btn btn-primary" type="submit">Send feedback</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>IndicSign · Built for inclusive conversations</span>
+    <span>Made with ❤️ in India</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  // ---- Settings (tuned per engine by the server) ----
+  const BASE_INTERVAL = {{ interval | default(1500) }};   // ms between frames
+  const STABLE_NEEDED = {{ stable | default(2) }};        // matching reads before auto-adding
+  const MAX_INTERVAL = 15000;
+
+  const $ = (id) => document.getElementById(id);
+  const video = $("webcam"), stage = $("stage"), ring = $("ring"), letterEl = $("letter");
+  const pill = $("statusPill"), statusText = $("statusText"), message = $("message");
+  const transcriptEl = $("transcript"), autoAdd = $("autoAdd");
+  const startBtn = $("startBtn"), pauseBtn = $("pauseBtn"), stopBtn = $("stopBtn"), addBtn = $("addBtn");
+
+  let stream = null, running = false, timer = null, interval = BASE_INTERVAL;
+  let current = "", streak = 0, lastAdded = "", text = "";
+  const canvas = document.createElement("canvas");
+
+  // ---- Theme ----
+  const root = document.documentElement;
+  try { const t = localStorage.getItem("indicsign-theme"); if (t) root.dataset.theme = t; } catch (e) {}
+  $("themeToggle").addEventListener("click", () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("indicsign-theme", root.dataset.theme); } catch (e) {}
+  });
+
+  // ---- Reveal on scroll ----
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { threshold: .12 });
+  document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+  // ---- UI helpers ----
+  function setStatus(label, mode) {
+    statusText.textContent = label;
+    pill.className = "status-pill" + (mode ? " " + mode : "");
+  }
+  function showMessage(msg, warn) {
+    message.textContent = msg || "";
+    message.className = "message" + (msg ? " show" : "") + (warn ? " warn" : "");
+  }
+  function renderTranscript() {
+    transcriptEl.innerHTML = "";
+    if (text) {
+      transcriptEl.append(document.createTextNode(text));
+      const c = document.createElement("span"); c.className = "caret"; transcriptEl.append(c);
+    }
+  }
+  function showLetter(letter, confidence, hand) {
+    const pct = typeof confidence === "number" ? Math.round(confidence * 100) : (hand ? 60 : 0);
+    ring.style.setProperty("--p", hand ? pct : 0);
+    const display = hand ? letter : "·";
+    if (letterEl.textContent !== display) {
+      letterEl.textContent = display;
+      letterEl.classList.remove("pop"); void letterEl.offsetWidth; letterEl.classList.add("pop");
+      if (hand) $("liveRegion").textContent = "Letter " + letter;
+    }
+    ring.setAttribute("aria-label", hand ? `Current letter ${letter}` : "No hand detected");
+    $("letterTitle").textContent = hand ? `Looks like "${letter}"` : "Waiting for a hand";
+    $("letterSub").textContent = hand
+      ? (typeof confidence === "number" ? `${pct}% sure · hold it to add` : "Hold it to add")
+      : "Place your hand inside the frame.";
+    addBtn.disabled = !hand;
+  }
+  function addText(s) { text += s; renderTranscript(); }
+
+  // ---- Stability logic: add a letter once it's been read the same way a few times ----
+  function track(letter, hand) {
+    if (!hand) { current = ""; streak = 0; lastAdded = ""; return; }
+    if (letter === current) streak++; else { current = letter; streak = 1; }
+    if (autoAdd.checked && streak >= STABLE_NEEDED && letter !== lastAdded) {
+      addText(letter); lastAdded = letter;
+    }
+  }
+
+  // ---- Camera ----
+  async function start() {
+    showMessage("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      showMessage("This browser can't access a camera. Try a recent Chrome, Edge, Firefox or Safari.", true);
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 720 }, facingMode: "user" }, audio: false });
+    } catch (err) {
+      const denied = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+      showMessage(denied ? "Camera permission was declined. You can allow it from the address bar and try again." : "We couldn't start the camera. Is another app using it?", true);
+      setStatus("Camera off", "warn");
+      return;
+    }
+    video.srcObject = stream;
+    await video.play().catch(() => {});
+    stage.classList.add("on");
+    startBtn.disabled = true; pauseBtn.disabled = false; stopBtn.disabled = false;
+    resume();
+  }
+  function resume() {
+    running = true; interval = BASE_INTERVAL;
+    pauseBtn.textContent = "Pause";
+    setStatus("Listening", "live");
+    clearTimeout(timer); timer = setTimeout(tick, 600);
+  }
+  function pause() {
+    running = false; clearTimeout(timer);
+    pauseBtn.textContent = "Resume";
+    setStatus("Paused");
+  }
+  function stop() {
+    pause();
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    stream = null; video.srcObject = null;
+    stage.classList.remove("on");
+    startBtn.disabled = false; pauseBtn.disabled = true; stopBtn.disabled = true;
+    pauseBtn.textContent = "Pause";
+    setStatus("Camera off");
+    showLetter("", null, false);
+    $("letterTitle").textContent = "Ready when you are";
+    $("letterSub").textContent = "Show one hand sign at a time.";
+  }
+
+  function grabFrame() {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    const scale = Math.min(1, 512 / w);           // smaller frames = faster, cheaper requests
+    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  }
+
+  async function tick() {
+    if (!running) return;
+    const frame = grabFrame();
+    if (frame) {
+      try {
+        const res = await fetch("/process_frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: frame }),
         });
+        const data = await res.json().catch(() => ({}));
+        if (!running) return;
 
-        // Capture a frame every second and send it to the backend
-        async function captureFrame() {
-            const canvas = document.createElement('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = videoElement.videoWidth;
-            canvas.height = videoElement.videoHeight;
-
-            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            const frameData = canvas.toDataURL('image/jpeg');
-
-            // Send frame to the backend and get prediction
-            const response = await fetch('/process_frame', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ image: frameData })
-            });
-
-            const result = await response.json();
-
-            if (result.prediction) {
-                predictionElement.textContent = "Prediction: " + result.prediction;
-            } else if (result.error) {
-                predictionElement.textContent = "Error: " + result.error;
-            }
-
-            setTimeout(captureFrame, 1000); // Capture every second
+        if (res.ok) {
+          interval = BASE_INTERVAL;
+          showMessage("");
+          setStatus(data.hand ? "Reading your sign" : "Listening", "live");
+          showLetter(data.letter, data.confidence, !!data.hand);
+          track(data.letter, !!data.hand);
+        } else if (res.status === 429 || res.status === 503) {
+          interval = Math.min(interval * 2, MAX_INTERVAL);
+          showMessage((data.error || "The service is busy.") + " We'll try again in a few seconds.", true);
+          setStatus("Hang on a sec", "warn");
+        } else if (res.status === 401 || res.status === 500) {
+          showMessage(data.error || "Something went wrong on the server.", true);
+          pause(); setStatus("Paused", "warn");
+          return;
+        } else {
+          showMessage(data.error || "That frame didn't work. Trying again…", true);
         }
+      } catch (err) {
+        interval = Math.min(interval * 2, MAX_INTERVAL);
+        showMessage("We lost connection for a moment. Retrying…", true);
+      }
+    }
+    if (running) timer = setTimeout(tick, interval);
+  }
 
-        // Start capturing frames
-        captureFrame();
-    </script>
+  startBtn.addEventListener("click", start);
+  pauseBtn.addEventListener("click", () => (running ? pause() : resume()));
+  stopBtn.addEventListener("click", stop);
+  addBtn.addEventListener("click", () => { if (current) { addText(current); lastAdded = current; } });
+  $("spaceBtn").addEventListener("click", () => { if (text && !text.endsWith(" ")) addText(" "); lastAdded = ""; });
+  $("backBtn").addEventListener("click", () => { text = text.slice(0, -1); lastAdded = ""; renderTranscript(); });
+  $("clearBtn").addEventListener("click", () => { text = ""; lastAdded = ""; renderTranscript(); });
+  $("speakBtn").addEventListener("click", () => {
+    if (!text.trim() || !("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.trim().toLowerCase());
+    u.lang = "en-IN"; u.rate = 0.9;
+    speechSynthesis.speak(u);
+  });
+  $("copyBtn").addEventListener("click", async (e) => {
+    try { await navigator.clipboard.writeText(text.trim()); e.target.textContent = "Copied"; }
+    catch { e.target.textContent = "Couldn't copy"; }
+    setTimeout(() => (e.target.textContent = "Copy"), 1600);
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && running) pause(); });
+})();
+</script>
 </body>
 </html>
